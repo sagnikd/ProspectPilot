@@ -39,6 +39,7 @@ LEAD_LIMIT=8
 ```
 
 `netlify.toml` rewrites `/api/*` to the Express-backed Netlify function at `/.netlify/functions/api/*`.
+The Netlify function entry uses a CommonJS shim so Netlify can load the ESM Express server reliably.
 
 ## Notes
 
