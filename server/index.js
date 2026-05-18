@@ -396,7 +396,8 @@ async function auditLeadWithGemini({ lead, screenshotUrl }) {
         ],
         generationConfig: {
           temperature: 0.55,
-          maxOutputTokens: 800
+          maxOutputTokens: 800,
+          responseMimeType: "application/json"
         }
       },
       {
@@ -448,7 +449,106 @@ function parseJsonFromModel(text) {
   const start = trimmed.indexOf("{");
   const end = trimmed.lastIndexOf("}");
   const jsonText = start >= 0 && end >= start ? trimmed.slice(start, end + 1) : trimmed;
-  return JSON.parse(jsonText);
+
+  try {
+    return JSON.parse(jsonText);
+  } catch {
+    const repaired = repairModelJson(jsonText);
+    try {
+      return JSON.parse(repaired);
+    } catch {
+      return salvageAuditFields(jsonText);
+    }
+  }
+}
+
+function repairModelJson(raw) {
+  let repaired = raw.replace(/[\u0000-\u0019]+/g, " ");
+  repaired = repaired.replace(/,\s*([}\]])/g, "$1");
+  repaired = repaired.replace(/\r?\n/g, "\\n");
+  repaired = repaired.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+  return repaired;
+}
+
+function salvageAuditFields(raw) {
+  return {
+    score: extractNumberField(raw, "score"),
+    findings: extractStringArrayField(raw, "findings"),
+    auditDetail: extractStringField(raw, "auditDetail"),
+    coldEmail: {
+      subject: extractStringField(raw, "subject"),
+      body: extractStringField(raw, "body")
+    }
+  };
+}
+
+function extractNumberField(raw, key) {
+  const match = raw.match(new RegExp(`"${key}"\\s*:\\s*(\\d+)`));
+  return match ? Number(match[1]) : undefined;
+}
+
+function extractStringArrayField(raw, key) {
+  const match = raw.match(new RegExp(`"${key}"\\s*:\\s*\\[(.*?)\\]`, "s"));
+  if (!match) return undefined;
+
+  const values = [...match[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((entry) =>
+    decodeModelString(entry[1])
+  );
+
+  return values.length > 0 ? values : undefined;
+}
+
+function extractStringField(raw, key) {
+  const keyIndex = raw.indexOf(`"${key}"`);
+  if (keyIndex === -1) return undefined;
+
+  const colonIndex = raw.indexOf(":", keyIndex);
+  if (colonIndex === -1) return undefined;
+
+  const openingQuoteIndex = raw.indexOf("\"", colonIndex);
+  if (openingQuoteIndex === -1) return undefined;
+
+  let value = "";
+  let escaped = false;
+
+  for (let index = openingQuoteIndex + 1; index < raw.length; index += 1) {
+    const char = raw[index];
+
+    if (escaped) {
+      value += `\\${char}`;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+
+    if (char === "\"") {
+      return decodeModelString(value);
+    }
+
+    if (char === "\n" || char === "\r") {
+      break;
+    }
+
+    value += char;
+  }
+
+  return decodeModelString(value);
+}
+
+function decodeModelString(value) {
+  try {
+    return JSON.parse(`"${value}"`);
+  } catch {
+    return value
+      .replace(/\\n/g, "\n")
+      .replace(/\\"/g, "\"")
+      .replace(/\\\\/g, "\\")
+      .trim();
+  }
 }
 
 function normalizeAudit(parsed, lead) {
