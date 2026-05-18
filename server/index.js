@@ -14,7 +14,7 @@ const distDir = path.join(rootDir, "dist");
 
 const PORT = Number(process.env.PORT ?? 5173);
 const LEAD_LIMIT = Number(process.env.LEAD_LIMIT ?? 8);
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-1.5-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 const GEMINI_KEY = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
 const GEOAPIFY_KEY = process.env.GEOAPIFY_API_KEY;
 
@@ -248,27 +248,27 @@ async function extractBestEmail(website) {
   const candidates = contactCandidateUrls(website);
   const found = new Set();
 
-  for (const url of candidates) {
-    try {
-      const response = await axios.get(url, {
+  const pages = await Promise.allSettled(
+    candidates.map((url) =>
+      axios.get(url, {
         headers: {
           "User-Agent": "ProspectPilot/1.0 (+https://prospectpilot.local)"
         },
-        maxRedirects: 4,
-        timeout: 9000,
+        maxRedirects: 3,
+        timeout: 4500,
         validateStatus: (status) => status < 500,
         responseType: "text"
-      });
+      })
+    )
+  );
 
-      if (response.status >= 400 || typeof response.data !== "string") {
-        continue;
-      }
+  for (const page of pages) {
+    if (page.status !== "fulfilled") continue;
+    const response = page.value;
+    if (response.status >= 400 || typeof response.data !== "string") continue;
 
-      for (const email of extractEmails(response.data)) {
-        found.add(email);
-      }
-    } catch {
-      continue;
+    for (const email of extractEmails(response.data)) {
+      found.add(email);
     }
   }
 
@@ -340,24 +340,7 @@ function scoreEmail(email, genericUseful) {
 }
 
 async function captureScreenshot(website) {
-  const fallback = microlinkEmbedUrl(website);
-
-  try {
-    const response = await axios.get("https://api.microlink.io", {
-      params: {
-        url: website,
-        screenshot: true,
-        meta: false,
-        embed: "screenshot.url"
-      },
-      timeout: 18000,
-      validateStatus: (status) => status < 500
-    });
-
-    return response.data?.data?.screenshot?.url ?? response.request?.res?.responseUrl ?? fallback;
-  } catch {
-    return fallback;
-  }
+  return microlinkEmbedUrl(website);
 }
 
 function microlinkEmbedUrl(website) {
