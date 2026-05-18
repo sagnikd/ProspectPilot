@@ -231,6 +231,107 @@ function Metric({ label, value }) {
   );
 }
 
+function SearchableCitySelect({ value, onChange, disabled }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef(null);
+
+  const currentCity = useMemo(() => {
+    return usCities.find((c) => `${c.city}|||${c.state}` === value);
+  }, [value]);
+
+  const filteredCities = useMemo(() => {
+    if (!search.trim()) return usCities;
+    const lower = search.toLowerCase();
+    return usCities.filter(
+      (c) =>
+        c.city.toLowerCase().includes(lower) ||
+        c.state.toLowerCase().includes(lower)
+    );
+  }, [search]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleInputFocus = (event) => {
+    if (disabled) return;
+    setIsOpen(true);
+    setSearch(currentCity ? `${currentCity.city}, ${currentCity.state}` : "");
+    setTimeout(() => {
+      event.target.select();
+    }, 0);
+  };
+
+  const handleSelect = (city) => {
+    onChange(`${city.city}|||${city.state}`);
+    setIsOpen(false);
+    setSearch("");
+  };
+
+  const displayValue = isOpen ? search : currentCity ? `${currentCity.city}, ${currentCity.state}` : "";
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <div className="relative">
+        <input
+          type="text"
+          value={displayValue}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={handleInputFocus}
+          placeholder="Search city..."
+          disabled={disabled}
+          className="h-11 w-full rounded-lg border border-white/10 bg-slate-950 pl-3 pr-10 text-sm text-white outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400">
+          <svg
+            className={`h-4 w-4 transform transition-transform ${isOpen ? "rotate-180" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-white/10 bg-slate-950/95 backdrop-blur-md shadow-2xl">
+          {filteredCities.length > 0 ? (
+            filteredCities.map((city) => {
+              const key = `${city.city}|||${city.state}`;
+              const isSelected = key === value;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handleSelect(city)}
+                  className={`w-full px-3 py-2.5 text-left text-sm transition-colors hover:bg-indigo-500/20 hover:text-white ${
+                    isSelected ? "bg-indigo-500/10 text-indigo-300 font-medium" : "text-slate-300"
+                  }`}
+                >
+                  {city.city}, {city.state}
+                </button>
+              );
+            })
+          ) : (
+            <div className="px-3 py-3 text-center text-sm text-slate-500">No cities found</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SearchPanel({
   selectedNiche,
   selectedCityKey,
@@ -268,18 +369,11 @@ function SearchPanel({
 
         <label className="grid gap-2">
           <span className="text-sm font-medium text-slate-300">City</span>
-          <select
+          <SearchableCitySelect
             value={selectedCityKey}
-            onChange={(event) => onCityChange(event.target.value)}
-            className="h-11 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-indigo-300/70"
+            onChange={onCityChange}
             disabled={isRunning}
-          >
-            {usCities.map((entry) => (
-              <option key={cityKey(entry)} value={cityKey(entry)}>
-                {entry.city}, {entry.state}
-              </option>
-            ))}
-          </select>
+          />
         </label>
 
         <label className="grid gap-2">
