@@ -117,52 +117,54 @@ app.get(["/api/leads/stream", "/leads/stream", "/.netlify/functions/api/leads/st
       message: `${scrapedLeads.length} website-ready leads found`
     });
 
-    for (const [index, lead] of scrapedLeads.entries()) {
-      if (closed) break;
+    await Promise.all(
+      scrapedLeads.map(async (lead, index) => {
+        if (closed) return;
 
-      const baseProgress = (index / scrapedLeads.length) * 92 + 4;
-      const progressStep = 92 / scrapedLeads.length / 4;
+        const baseProgress = (index / scrapedLeads.length) * 92 + 4;
+        const progressStep = 92 / scrapedLeads.length / 4;
 
-      send("stage", {
-        stage: STAGES[1],
-        progress: Math.round(baseProgress),
-        detail: lead.name
-      });
+        send("stage", {
+          stage: STAGES[1],
+          progress: Math.round(baseProgress),
+          detail: lead.name
+        });
 
-      const foundEmail = await extractBestEmail(lead.website);
+        const foundEmail = await extractBestEmail(lead.website);
 
-      send("stage", {
-        stage: STAGES[2],
-        progress: Math.round(baseProgress + progressStep),
-        detail: lead.name
-      });
+        send("stage", {
+          stage: STAGES[2],
+          progress: Math.round(baseProgress + progressStep),
+          detail: lead.name
+        });
 
-      const screenshotUrl = await captureScreenshot(lead.website);
+        const screenshotUrl = await captureScreenshot(lead.website);
 
-      send("stage", {
-        stage: STAGES[3],
-        progress: Math.round(baseProgress + progressStep * 2),
-        detail: lead.name
-      });
+        send("stage", {
+          stage: STAGES[3],
+          progress: Math.round(baseProgress + progressStep * 2),
+          detail: lead.name
+        });
 
-      const audit = await auditLeadWithGemini({ lead, screenshotUrl });
+        const audit = await auditLeadWithGemini({ lead, screenshotUrl });
 
-      send("stage", {
-        stage: STAGES[4],
-        progress: Math.round(baseProgress + progressStep * 3),
-        detail: lead.name
-      });
+        send("stage", {
+          stage: STAGES[4],
+          progress: Math.round(baseProgress + progressStep * 3),
+          detail: lead.name
+        });
 
-      send("lead", {
-        ...lead,
-        foundEmail,
-        screenshotUrl,
-        score: audit.score,
-        auditDetail: audit.auditDetail,
-        findings: audit.findings,
-        coldEmail: audit.coldEmail
-      });
-    }
+        send("lead", {
+          ...lead,
+          foundEmail,
+          screenshotUrl,
+          score: audit.score,
+          auditDetail: audit.auditDetail,
+          findings: audit.findings,
+          coldEmail: audit.coldEmail
+        });
+      })
+    );
 
     send("done", {
       progress: 100,
@@ -396,8 +398,7 @@ async function auditLeadWithGemini({ lead, screenshotUrl }) {
         ],
         generationConfig: {
           temperature: 0.55,
-          maxOutputTokens: 800,
-          responseMimeType: "application/json"
+          maxOutputTokens: 800
         }
       },
       {

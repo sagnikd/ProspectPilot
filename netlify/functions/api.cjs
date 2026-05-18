@@ -105,60 +105,62 @@ async function handleLeadStream(event) {
       })
     );
 
-    for (const [index, lead] of scrapedLeads.entries()) {
-      const baseProgress = (index / scrapedLeads.length) * 92 + 4;
-      const progressStep = 92 / scrapedLeads.length / 4;
+    await Promise.all(
+      scrapedLeads.map(async (lead, index) => {
+        const baseProgress = (index / scrapedLeads.length) * 92 + 4;
+        const progressStep = 92 / scrapedLeads.length / 4;
 
-      messages.push(
-        sseEvent("stage", {
-          stage: STAGES[1],
-          progress: Math.round(baseProgress),
-          detail: lead.name
-        })
-      );
+        messages.push(
+          sseEvent("stage", {
+            stage: STAGES[1],
+            progress: Math.round(baseProgress),
+            detail: lead.name
+          })
+        );
 
-      const foundEmail = await extractBestEmail(lead.website);
+        const foundEmail = await extractBestEmail(lead.website);
 
-      messages.push(
-        sseEvent("stage", {
-          stage: STAGES[2],
-          progress: Math.round(baseProgress + progressStep),
-          detail: lead.name
-        })
-      );
+        messages.push(
+          sseEvent("stage", {
+            stage: STAGES[2],
+            progress: Math.round(baseProgress + progressStep),
+            detail: lead.name
+          })
+        );
 
-      const screenshotUrl = captureScreenshot(lead.website);
+        const screenshotUrl = captureScreenshot(lead.website);
 
-      messages.push(
-        sseEvent("stage", {
-          stage: STAGES[3],
-          progress: Math.round(baseProgress + progressStep * 2),
-          detail: lead.name
-        })
-      );
+        messages.push(
+          sseEvent("stage", {
+            stage: STAGES[3],
+            progress: Math.round(baseProgress + progressStep * 2),
+            detail: lead.name
+          })
+        );
 
-      const audit = await auditLeadWithGemini({ lead, screenshotUrl });
+        const audit = await auditLeadWithGemini({ lead, screenshotUrl });
 
-      messages.push(
-        sseEvent("stage", {
-          stage: STAGES[4],
-          progress: Math.round(baseProgress + progressStep * 3),
-          detail: lead.name
-        })
-      );
+        messages.push(
+          sseEvent("stage", {
+            stage: STAGES[4],
+            progress: Math.round(baseProgress + progressStep * 3),
+            detail: lead.name
+          })
+        );
 
-      messages.push(
-        sseEvent("lead", {
-          ...lead,
-          foundEmail,
-          screenshotUrl,
-          score: audit.score,
-          auditDetail: audit.auditDetail,
-          findings: audit.findings,
-          coldEmail: audit.coldEmail
-        })
-      );
-    }
+        messages.push(
+          sseEvent("lead", {
+            ...lead,
+            foundEmail,
+            screenshotUrl,
+            score: audit.score,
+            auditDetail: audit.auditDetail,
+            findings: audit.findings,
+            coldEmail: audit.coldEmail
+          })
+        );
+      })
+    );
 
     messages.push(
       sseEvent("done", {
@@ -392,8 +394,7 @@ async function auditLeadWithGemini({ lead, screenshotUrl }) {
         contents: [{ role: "user", parts }],
         generationConfig: {
           temperature: 0.55,
-          maxOutputTokens: 800,
-          responseMimeType: "application/json"
+          maxOutputTokens: 800
         }
       },
       {
