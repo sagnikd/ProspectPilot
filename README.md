@@ -27,6 +27,19 @@ npm run build    # Production client build
 npm run start    # Serve the built app with Express
 ```
 
+## Netlify
+
+The deployed app expects these Netlify environment variables:
+
+```bash
+GEOAPIFY_API_KEY=your_geoapify_key
+GEMINI_API_KEY=your_gemini_key
+GEMINI_MODEL=gemini-2.5-flash
+LEAD_LIMIT=8
+```
+
+`netlify.toml` rewrites `/api/*` to the Express-backed Netlify function at `/.netlify/functions/api/*`.
+
 ## Notes
 
 - Geoapify geocodes the selected city and state, then searches by `place_id` with a 15km circle fallback.

@@ -60,7 +60,7 @@ export const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-app.get("/api/health", (_req, res) => {
+app.get(["/api/health", "/health", "/.netlify/functions/api/health"], (_req, res) => {
   res.json({
     ok: true,
     service: "ProspectPilot",
@@ -69,7 +69,7 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-app.get("/api/leads/stream", async (req, res) => {
+app.get(["/api/leads/stream", "/leads/stream", "/.netlify/functions/api/leads/stream"], async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");

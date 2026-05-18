@@ -47,6 +47,29 @@ function scoreTone(score) {
   };
 }
 
+async function resolveApiBase() {
+  const candidates = ["/api", "/.netlify/functions/api"];
+
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(`${candidate}/health`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json"
+        }
+      });
+
+      if (response.ok) {
+        return candidate;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return "/api";
+}
+
 export default function App() {
   const [selectedNiche, setSelectedNiche] = useState(niches[0].value);
   const [selectedCityKey, setSelectedCityKey] = useState(cityKey(defaultCity));
@@ -59,6 +82,7 @@ export default function App() {
     progress: 0,
     detail: "Idle"
   });
+  const [apiBase, setApiBase] = useState("/api");
   const streamRef = useRef(null);
 
   const selectedCity = useMemo(
@@ -67,7 +91,16 @@ export default function App() {
   );
 
   useEffect(() => {
+    let cancelled = false;
+
+    resolveApiBase().then((resolvedBase) => {
+      if (!cancelled) {
+        setApiBase(resolvedBase);
+      }
+    });
+
     return () => {
+      cancelled = true;
       streamRef.current?.close();
     };
   }, []);
@@ -90,7 +123,7 @@ export default function App() {
       state: selectedCity.state
     });
 
-    const stream = new EventSource(`/api/leads/stream?${params.toString()}`);
+    const stream = new EventSource(`${apiBase}/leads/stream?${params.toString()}`);
     streamRef.current = stream;
 
     stream.addEventListener("stage", (event) => {
